@@ -1,5 +1,6 @@
 import { Routes, Route, NavLink, useNavigate, useLocation } from "react-router-dom";
-import { Wallet as WalletIcon, LogOut, Coins, Shield, ShieldCheck, Menu, X, Dices, PieChart, Rocket, HelpCircle, Radio, MoreHorizontal, ChevronDown, Compass, ArrowLeftRight, Zap, LayoutGrid, Bell, Bookmark, Recycle } from "lucide-react";
+import { Wallet as WalletIcon, LogOut, Coins, Shield, ShieldCheck, Menu, X, Dices, PieChart, Rocket, HelpCircle, Radio, MoreHorizontal, ChevronDown, Compass, ArrowLeftRight, Zap, LayoutGrid, Bell, Bookmark, Recycle, FileText, ExternalLink } from "lucide-react";
+import { SOCIALS, TelegramIcon, XIcon } from "./lib/socials";
 import { formatUnits } from "ethers";
 import { useWallet } from "./lib/wallet";
 import { short, fmtInt } from "./lib/util";
@@ -23,6 +24,7 @@ const CasinoPage = lazy(() => import("./pages/CasinoPage"));
 const CasinoRoomPage = lazy(() => import("./pages/CasinoRoomPage"));
 const WalletPage = lazy(() => import("./pages/WalletPage"));
 const FlywheelPage = lazy(() => import("./pages/FlywheelPage"));
+const LegalPage = lazy(() => import("./pages/LegalPage"));
 const AuditPage = lazy(() => import("./pages/AuditPage"));
 const TokenomicsPage = lazy(() => import("./pages/TokenomicsPage"));
 const AdminPage = lazy(() => import("./pages/AdminPage"));
@@ -61,6 +63,7 @@ const NAV_MAIN: NavDef[] = [
 const NAV_MORE: NavDef[] = [
   { to: "/faq", label: "FAQ", icon: HelpCircle },
   { to: "/audit", label: "Audit", icon: ShieldCheck },
+  { to: "/legal/terms", label: "Legal", icon: FileText },
 ];
 const NAV_ADMIN: NavDef = { to: "/admin", label: "Admin", icon: Shield, ownerOnly: true };
 
@@ -106,6 +109,18 @@ function NavRow({ item, badge = 0 }: { item: NavDef; badge?: number }) {
   );
 }
 
+/** External link row for the sidebar (socials), styled like NavRow. */
+function NavExternal({ href, label, icon }: { href: string; label: string; icon: React.ReactNode }) {
+  return (
+    <a href={href} target="_blank" rel="noreferrer"
+      className="flex items-center gap-4 rounded-full px-4 py-3 text-bone-200 transition hover:bg-ink-800">
+      <span className="relative grid place-items-center w-6 text-bone-300">{icon}</span>
+      <span className="text-[17px]">{label}</span>
+      <ExternalLink size={13} className="ml-auto text-bone-600" />
+    </a>
+  );
+}
+
 /** Sidebar nav — primary items, then a collapsible "More" group (FAQ · Audit ·
  *  Tokenomics), then the owner-only Admin link. Shared by the desktop rail and
  *  the mobile drawer, each keeping its own open/closed state. */
@@ -129,6 +144,9 @@ function NavSection({ isOwner }: { isOwner: boolean }) {
         </div>
       )}
       {isOwner && <NavRow item={NAV_ADMIN} />}
+      {/* Socials — always visible, below the More group */}
+      <NavExternal href={SOCIALS.telegram} label="Telegram" icon={<TelegramIcon size={22} />} />
+      <NavExternal href={SOCIALS.x} label="X / Twitter" icon={<XIcon size={19} />} />
     </>
   );
 }
@@ -226,9 +244,9 @@ function BrandButton() {
   const nav = useNavigate();
   return (
     <button onClick={() => nav("/casino?view=analytics")} title="ELCAS Terminal · live casino analytics"
-      className="!mt-4 flex w-full items-center justify-center gap-2.5 rounded-xl bg-blood-500 py-3.5 text-[15px] font-extrabold tracking-tight text-ink-950 shadow-blood transition hover:bg-blood-400">
+      className="!mt-4 flex w-full items-center justify-center gap-2.5 rounded-xl bg-ink-850 border border-blood-500/40 py-3.5 text-[15px] font-extrabold tracking-tight text-bone-50 shadow-blood transition hover:bg-ink-800 hover:border-blood-500/70">
       <img src="./elcasino_logo.png" alt=""
-        className="h-7 w-7 rounded-md object-cover ring-1 ring-ink-950/20" draggable={false} />
+        className="h-7 w-7 rounded-md object-cover ring-1 ring-blood-500/30" draggable={false} />
       Terminal
     </button>
   );
@@ -311,6 +329,8 @@ export default function App() {
                 <Route path="/audit" element={<AuditPage />} />
                 <Route path="/tokenomics" element={<TokenomicsPage />} />
                 <Route path="/faq" element={<FaqPage />} />
+                <Route path="/legal" element={<LegalPage />} />
+                <Route path="/legal/:section" element={<LegalPage />} />
                 <Route path="/u/:username" element={<ProfilePage />} />
                 <Route path="/a/:address" element={<ProfilePage byAddress />} />
                 <Route path="/me" element={<ProfilePage self />} />
