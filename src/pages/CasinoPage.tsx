@@ -43,6 +43,24 @@ const isBlockedTok = (addr?: string, symbol?: string) => isBlockedCasinoToken(ad
 
 const DEPLOY_FEE_ETH = formatUnits(DEPLOY_FEE_WEI, 18);
 
+// Animated hero: slow Ken-Burns on back.png, floating glow orbs, and a periodic
+// light sheen sweeping across. Respects prefers-reduced-motion.
+const CASINO_HERO_CSS = `
+.casino-hero { min-height: 200px; }
+.casino-hero-img { opacity: .45; transform: scale(1.08); animation: casino-zoom 26s ease-in-out infinite alternate; }
+.casino-orb { animation: casino-float 9s ease-in-out infinite; }
+.casino-orb--2 { animation-duration: 13s; animation-direction: reverse; }
+.casino-sheen { background: linear-gradient(105deg, transparent 40%, rgba(255,255,255,.06) 50%, transparent 60%); background-size: 250% 100%; animation: casino-sheen 7s ease-in-out infinite; }
+.casino-cta { transition: transform .15s ease, box-shadow .15s ease; }
+.casino-cta:hover { transform: translateY(-1px) scale(1.02); }
+@keyframes casino-zoom { from { transform: scale(1.08); } to { transform: scale(1.18); } }
+@keyframes casino-float { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-18px); } }
+@keyframes casino-sheen { 0% { background-position: 180% 0; } 55%,100% { background-position: -80% 0; } }
+@media (prefers-reduced-motion: reduce) {
+  .casino-hero-img, .casino-orb, .casino-sheen { animation: none; }
+}
+`;
+
 /**
  * EL-Casino — a persistent game-type tab bar (Roulette, Crash, …). The
  * selected game shows its rooms split 50/50: All rooms on the left, RWA-token
@@ -101,13 +119,31 @@ export default function CasinoPage() {
 
   return (
     <div className="animate-fade-up">
-      {/* Header */}
-      <div className="mb-4">
-        <div className="flex items-center gap-2 text-blood-400">
-          <Dices size={16} /><span className="font-mono text-[10px] uppercase tracking-[0.24em]">EL-Casino · on-chain</span>
+      <style>{CASINO_HERO_CSS}</style>
+      {/* Hero — back.png with animated glow + neon title */}
+      <div className="casino-hero relative overflow-hidden rounded-2xl mb-4 border border-ink-700/60">
+        <img src="./back.png" alt="" aria-hidden className="casino-hero-img absolute inset-0 w-full h-full object-cover" draggable={false} />
+        <div className="absolute inset-0 bg-gradient-to-r from-ink-950/95 via-ink-950/70 to-ink-950/30" />
+        <div className="absolute inset-0 bg-gradient-to-t from-ink-950/90 via-transparent to-transparent" />
+        <div className="casino-orb pointer-events-none absolute -top-16 -left-10 h-52 w-52 rounded-full bg-emerald-500/20 blur-3xl" />
+        <div className="casino-orb casino-orb--2 pointer-events-none absolute -bottom-24 right-0 h-56 w-56 rounded-full bg-blood-500/25 blur-3xl" />
+        <div className="casino-sheen pointer-events-none absolute inset-0" />
+        <div className="relative px-5 sm:px-8 py-9 sm:py-14">
+          <div className="inline-flex items-center gap-2 text-emerald-300">
+            <span className="mg-live-dot h-2 w-2 rounded-full bg-emerald-400" />
+            <span className="font-mono text-[10px] uppercase tracking-[0.32em]">EL-Casino · on-chain</span>
+          </div>
+          <h1 className="mt-2 text-3xl sm:text-5xl font-extrabold tracking-tight mg-neon leading-none">Play the halls</h1>
+          <p className="text-bone-300 text-sm sm:text-base mt-3 max-w-lg">Provably-fair games on any token — or stake a pool's <span className="text-emerald-300 font-semibold">Earn</span> tab and become the house.</p>
+          <div className="mt-5 flex flex-wrap gap-2">
+            <button onClick={() => setCreating(true)} className="btn-primary px-5 py-2.5 text-sm inline-flex items-center gap-2 casino-cta">
+              <Plus size={16} /> Create a room
+            </button>
+            <button onClick={() => setSp({ view: "analytics" })} className="inline-flex items-center gap-2 rounded-full border border-ink-600 bg-ink-900/60 px-5 py-2.5 text-sm font-semibold text-bone-100 hover:border-emerald-500/50 hover:text-emerald-200 backdrop-blur transition">
+              <BarChart3 size={16} /> Analytics
+            </button>
+          </div>
         </div>
-        <h1 className="text-xl sm:text-2xl font-bold tracking-tight">Play the halls</h1>
-        <p className="text-bone-400 text-sm mt-0.5">Provably-fair games on any token — or stake a pool's <span className="text-emerald-300">Earn</span> tab and become the house.</p>
       </div>
 
       {/* Top action tabs — Analytics · Your positions · Create room, side by side */}

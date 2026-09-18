@@ -1,9 +1,10 @@
 import { useEffect, useState } from "react";
 import { Contract, formatUnits, formatEther } from "ethers";
-import { Recycle, Flame, Coins, ExternalLink, Loader2, ArrowRight, TrendingUp } from "lucide-react";
-import { CHAIN, ERC20_ABI, readProvider } from "../lib/chain";
+import { Recycle, Flame, Coins, ExternalLink, Loader2, ArrowRight, Wallet } from "lucide-react";
+import { ADDR, CHAIN, ERC20_ABI, erc20Meta, readProvider } from "../lib/chain";
 import { dexPricesUsd, fmtUsdShort } from "../lib/dexscreener";
-import { loadCasinoAnalytics } from "../lib/casino";
+import { loadCasinoTokens, isBlockedCasinoToken } from "../lib/casino";
+import { EthMark } from "../components/UnitMark";
 import { fmtInt, short } from "../lib/util";
 import { CopyButton } from "../components/CopyButton";
 
@@ -30,11 +31,12 @@ const BURN_ADDRS = [
   "0x0000000000000000000000000000000000000000",
 ];
 
+// One asset actually sitting in the fee collector — ETH or a bet token.
+type Holding = { symbol: string; addr: string; amount: number; usd: number; isEth?: boolean; priceKnown: boolean };
+
 type Data = {
-  feesUsd: number;       // total fees collected (deploy + per-bet), from casino analytics
-  ethPriceUsd: number;
-  collectorEth: number;  // ETH sitting in the collector (pending buyback)
-  collectorEthUsd: number;
+  totalUsd: number;      // real value of everything in the collector (ETH + tokens)
+  holdings: Holding[];   // per-token breakdown, biggest first
   tokenLive: boolean;    // is the ELCAS token address set + readable?
   elcasPrice: number;    // ELCAS price in USD (0 if unknown)
   heldElcas: number;     // ELCAS held by the collector (bought back, pending burn)
@@ -51,32 +53,56 @@ export default function FlywheelPage() {
     let live = true;
     const load = async () => {
       try {
-        // Fee side is always real. ELCAS side only reads once the token address
-        // is set — until launch there's nothing to query.
-        const [analytics, collectorWei] = await Promise.all([
-          loadCasinoAnalytics().catch(() => null),
+        // The real "fees collected" is whatever the collector wallet actually
+        // holds on-chain: ETH + the casino bet tokens it has gathered. We value
+        // each with live DexScreener prices — no theoretical fee assumptions.
+        const tokenList = await loadCasinoTokens().catch(() => [] as string[]);
+        const tokens = tokenList.filter((t) => !isBlockedCasinoToken(t)); // drop owner-blocked (e.g. wolf)
+        const [collectorWei, priceMap] = await Promise.all([
           readProvider.getBalance(FEE_COLLECTOR).catch(() => 0n),
+          dexPricesUsd([...tokens, ADDR.weth]).catch(() => new Map<string, number>()),
         ]);
+        const ethUsd = priceMap.get(ADDR.weth.toLowerCase()) ?? 0;
+        const ethAmt = Number(formatEther(collectorWei as bigint));
+
+        const holdings: Holding[] = [];
+        if (ethAmt > 0) holdings.push({ symbol: "ETH", addr: ADDR.weth, amount: ethAmt, usd: ethAmt * ethUsd, isEth: true, priceKnown: ethUsd > 0 });
+
+        // Read each token's balance in the collector (+ symbol/decimals) — the
+        // casino token set is small, so per-token reads are cheap and batched.
+        await Promise.all(tokens.map(async (t) => {
+          try {
+            const c = new Contract(t, ERC20_ABI, readProvider);
+            const [balWei, meta] = await Promise.all([
+              c.balanceOf(FEE_COLLECTOR),
+              erc20Meta(t).catch(() => ({ symbol: short(t), decimals: 18 })),
+            ]);
+            if (isBlockedCasinoToken(t, meta.symbol)) return; // block by symbol too
+            const amt = Number(formatUnits(balWei as bigint, meta.decimals));
+            if (amt <= 0) return;
+            const price = priceMap.get(t.toLowerCase()) ?? 0;
+            holdings.push({ symbol: meta.symbol, addr: t, amount: amt, usd: amt * price, priceKnown: price > 0 });
+          } catch { /* skip token */ }
+        }));
+        holdings.sort((a, b) => b.usd - a.usd);
+        const totalUsd = holdings.reduce((s, h) => s + h.usd, 0);
+
+        // ELCAS side only reads once the token address is set — pending until launch.
         let elcasPrice = 0, heldElcas = 0, burnedElcas = 0;
         if (hasElcasToken) {
           const elcas = new Contract(ELCAS_TOKEN, ERC20_ABI, readProvider);
-          const [heldWei, burnWeis, priceMap] = await Promise.all([
+          const [heldWei, burnWeis, ep] = await Promise.all([
             elcas.balanceOf(FEE_COLLECTOR).catch(() => 0n),
             Promise.all(BURN_ADDRS.map((a) => elcas.balanceOf(a).catch(() => 0n))),
             dexPricesUsd([ELCAS_TOKEN]).catch(() => new Map<string, number>()),
           ]);
-          elcasPrice = priceMap.get(ELCAS_TOKEN.toLowerCase()) ?? 0;
+          elcasPrice = ep.get(ELCAS_TOKEN.toLowerCase()) ?? 0;
           heldElcas = Number(formatUnits(heldWei as bigint, 18));
           burnedElcas = (burnWeis as bigint[]).reduce((s, b) => s + Number(formatUnits(b, 18)), 0);
         }
         if (!live) return;
-        const ethPriceUsd = analytics?.ethPriceUsd ?? 0;
-        const collectorEth = Number(formatEther(collectorWei as bigint));
         setD({
-          feesUsd: analytics?.feeRevenueUsd ?? 0,
-          ethPriceUsd,
-          collectorEth,
-          collectorEthUsd: collectorEth * ethPriceUsd,
+          totalUsd, holdings,
           tokenLive: hasElcasToken,
           elcasPrice,
           heldElcas,
@@ -115,17 +141,51 @@ export default function FlywheelPage() {
       <Flywheel data={d} loading={loading} />
 
       {/* Totals */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
         <StatCard icon={<Coins size={16} />} accent="#22d3ee" label="Fees collected"
-          value={d ? fmtUsdShort(d.feesUsd) : "…"} sub="deploy + per-bet fees" />
-        <StatCard icon={<TrendingUp size={16} />} accent="#f59e0b" label="Pending buyback"
-          value={d ? fmtUsdShort(d.collectorEthUsd) : "…"} sub={d ? `${d.collectorEth.toFixed(4)} ETH in collector` : "in collector"} />
+          value={d ? fmtUsdShort(d.totalUsd) : "…"} sub="held in collector · on-chain" />
         <StatCard icon={<Recycle size={16} />} accent="#10b981" label="ELCAS held"
           value={!d ? "…" : d.tokenLive ? fmtInt(d.heldElcas) : "—"}
           sub={d && d.tokenLive ? (d.elcasPrice > 0 ? `${fmtUsdShort(d.heldElcasUsd)} · bought back` : "bought back, pending burn") : "pending token launch"} />
         <StatCard icon={<Flame size={16} />} accent="#dc2626" label="ELCAS burned"
           value={!d ? "…" : d.tokenLive ? fmtInt(d.burnedElcas) : "—"}
           sub={d && d.tokenLive ? (d.elcasPrice > 0 ? `${fmtUsdShort(d.burnedElcasUsd)} removed forever` : "removed forever") : "pending token launch"} />
+      </div>
+
+      {/* Per-token breakdown — what's actually in the collector, so the totals are self-evident */}
+      <div className="panel p-4">
+        <div className="flex items-center gap-2 mb-3">
+          <Wallet size={14} className="text-emerald-400" />
+          <span className="font-mono text-[10px] uppercase tracking-[0.2em] text-bone-400">Collected fees — by asset</span>
+          <div className="h-px flex-1 bg-ink-700/70" />
+          <span className="font-mono text-[10px] text-bone-500">{d ? fmtUsdShort(d.totalUsd) : "…"}</span>
+        </div>
+        {!d ? (
+          <div className="py-6 text-center text-bone-500 text-sm"><Loader2 size={16} className="animate-spin inline" /></div>
+        ) : d.holdings.length === 0 ? (
+          <div className="py-6 text-center text-bone-500 text-sm">No fees in the collector yet.</div>
+        ) : (
+          <div className="space-y-1.5">
+            {d.holdings.map((h) => (
+              <div key={h.addr + (h.isEth ? "-eth" : "")} className="flex items-center gap-3 rounded-xl border border-ink-700/60 bg-ink-900/40 px-3 py-2.5">
+                <span className="grid h-8 w-8 place-items-center rounded-full bg-ink-800 text-sm shrink-0">
+                  {h.isEth ? <EthMark /> : <span className="font-bold text-[11px] text-bone-300">{(h.symbol || "?").slice(0, 3).toUpperCase()}</span>}
+                </span>
+                <div className="min-w-0 flex-1">
+                  <div className="text-sm font-semibold text-bone-50">{h.symbol}</div>
+                  <div className="font-mono text-[10px] text-bone-500 truncate">{h.isEth ? "native · gas" : short(h.addr)}</div>
+                </div>
+                <div className="text-right shrink-0">
+                  <div className="font-mono text-sm font-bold tabular-nums text-bone-100">{h.amount >= 1 ? fmtInt(h.amount) : h.amount.toPrecision(3)}</div>
+                  <div className="font-mono text-[10px] text-emerald-300">{h.priceKnown ? fmtUsdShort(h.usd) : "price n/a"}</div>
+                </div>
+              </div>
+            ))}
+            <p className="text-[11px] text-bone-600 leading-relaxed pt-1.5">
+              These are the exact balances the fee collector holds right now — casino fees waiting to be swapped to ELCAS and burned. The dollar total is the live value of these assets, nothing theoretical.
+            </p>
+          </div>
+        )}
       </div>
 
       {/* On-chain sources */}
@@ -152,7 +212,7 @@ export default function FlywheelPage() {
 // ── The animated wheel ────────────────────────────────────────────────────────
 function Flywheel({ data, loading }: { data: Data | null; loading: boolean }) {
   const stages = [
-    { key: "fees", label: "Casino fees", icon: Coins, color: "#22d3ee", value: data ? fmtUsdShort(data.feesUsd) : "" },
+    { key: "fees", label: "Casino fees", icon: Coins, color: "#22d3ee", value: data ? fmtUsdShort(data.totalUsd) : "" },
     { key: "buy", label: "Buy ELCAS", icon: Recycle, color: "#10b981", value: !data ? "" : !data.tokenLive ? "pending" : data.heldElcas > 0 ? fmtInt(data.heldElcas) + " ELCAS" : "—" },
     { key: "burn", label: "Burn", icon: Flame, color: "#dc2626", value: !data ? "" : !data.tokenLive ? "pending" : fmtInt(data.burnedElcas) + " ELCAS" },
   ];

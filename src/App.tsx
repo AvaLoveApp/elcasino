@@ -52,7 +52,7 @@ type NavDef = { to: string; label: string; icon: typeof Coins; img?: string; own
 // Finance protocol — no social surfaces. Just the MIDGARD economy, its analytics,
 // the on-chain casino, and the user's wallet/portfolio.
 const NAV_MAIN: NavDef[] = [
-  { to: "/casino", label: "Casino", icon: Dices, img: "./elcasino_logo.png" }, // brand logo — the default surface users land on
+  { to: "/casino", label: "EL-Casino", icon: Dices, img: "./elcasino_logo.png" }, // brand logo — the default surface users land on
   { to: "/trade", label: "Trade", icon: ArrowLeftRight },
   { to: "/flywheel", label: "Flywheel", icon: Recycle },
   { to: "/wallet", label: "Wallet", icon: WalletIcon },
@@ -97,7 +97,7 @@ function NavRow({ item, badge = 0 }: { item: NavDef; badge?: number }) {
               </span>
             )}
           </span>
-          <span className={`text-[17px] ${item.label === "Home" ? "mg-neon-soft" : ""}`}>{item.label}</span>
+          <span className={`text-[17px] ${item.label === "EL-Casino" ? "mg-neon-soft font-extrabold tracking-tight" : ""}`}>{item.label}</span>
         </>
       )}
     </NavLink>
