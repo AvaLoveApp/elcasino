@@ -1,5 +1,5 @@
 import { Routes, Route, NavLink, useNavigate, useLocation } from "react-router-dom";
-import { Wallet as WalletIcon, LogOut, Coins, Shield, ShieldCheck, Menu, X, Dices, PieChart, Rocket, HelpCircle, Radio, MoreHorizontal, ChevronDown, Compass, ArrowLeftRight, Zap, LayoutGrid, Bell, Bookmark } from "lucide-react";
+import { Wallet as WalletIcon, LogOut, Coins, Shield, ShieldCheck, Menu, X, Dices, PieChart, Rocket, HelpCircle, Radio, MoreHorizontal, ChevronDown, Compass, ArrowLeftRight, Zap, LayoutGrid, Bell, Bookmark, Recycle } from "lucide-react";
 import { formatUnits } from "ethers";
 import { useWallet } from "./lib/wallet";
 import { short, fmtInt } from "./lib/util";
@@ -22,6 +22,7 @@ const AnalyticsPage = lazy(() => import("./pages/AnalyticsPage"));
 const CasinoPage = lazy(() => import("./pages/CasinoPage"));
 const CasinoRoomPage = lazy(() => import("./pages/CasinoRoomPage"));
 const WalletPage = lazy(() => import("./pages/WalletPage"));
+const FlywheelPage = lazy(() => import("./pages/FlywheelPage"));
 const AuditPage = lazy(() => import("./pages/AuditPage"));
 const TokenomicsPage = lazy(() => import("./pages/TokenomicsPage"));
 const AdminPage = lazy(() => import("./pages/AdminPage"));
@@ -51,8 +52,9 @@ type NavDef = { to: string; label: string; icon: typeof Coins; img?: string; own
 // Finance protocol — no social surfaces. Just the MIDGARD economy, its analytics,
 // the on-chain casino, and the user's wallet/portfolio.
 const NAV_MAIN: NavDef[] = [
-  { to: "/trade", label: "Trade", icon: ArrowLeftRight, img: "./elcasino_logo.png" }, // brand logo — the default surface
-  { to: "/casino", label: "Casino", icon: Dices },
+  { to: "/casino", label: "Casino", icon: Dices, img: "./elcasino_logo.png" }, // brand logo — the default surface users land on
+  { to: "/trade", label: "Trade", icon: ArrowLeftRight },
+  { to: "/flywheel", label: "Flywheel", icon: Recycle },
   { to: "/wallet", label: "Wallet", icon: WalletIcon },
 ];
 // Secondary destinations, tucked behind a "More" disclosure in the sidebar.
@@ -294,9 +296,10 @@ export default function App() {
             <Suspense fallback={<PageLoading />}>
               <Routes>
                 {/* Home removed — Trade is the default surface. */}
-                <Route path="/" element={<TokenPage section="trade" />} />
+                <Route path="/" element={<CasinoPage />} />
                 <Route path="/token" element={<TokenPage section="trade" />} />
                 <Route path="/trade" element={<TokenPage section="trade" />} />
+                <Route path="/flywheel" element={<FlywheelPage />} />
                 <Route path="/yield" element={<TokenPage section="yield" />} />
                 <Route path="/apps" element={<TokenPage section="apps" />} />
                 <Route path="/analytics" element={<AnalyticsPage />} />
