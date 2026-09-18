@@ -1,0 +1,13 @@
+{
+  "name": "EL-Casino",
+  "short_name": "EL-Casino",
+  "description": "An on-chain casino — provably-fair games, the MIDGARD economy, and real-yield pools.",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#0A0D13",
+  "theme_color": "#0A0D13",
+  "icons": [
+    { "src": "./elcasino_logo.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "./elcasino_logo.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
