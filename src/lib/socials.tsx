@@ -3,7 +3,23 @@
 export const SOCIALS = {
   telegram: "https://t.me/elcasinos",
   x: "https://x.com/elcas_casino",
+  fomo: "https://fomo.family/profile/elcas_casino",
 } as const;
+
+/** FOMO community profile — brand logo bundled as a public asset. */
+export function FomoIcon({ size = 22, className = "" }: { size?: number; className?: string }) {
+  return (
+    <img
+      src="./fomo.jpg"
+      alt=""
+      width={size}
+      height={size}
+      className={`rounded-full object-cover ${className}`}
+      draggable={false}
+      aria-hidden
+    />
+  );
+}
 
 /** Telegram brand glyph. */
 export function TelegramIcon({ size = 16, className = "" }: { size?: number; className?: string }) {

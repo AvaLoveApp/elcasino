@@ -1,6 +1,6 @@
 import { Routes, Route, NavLink, useNavigate, useLocation } from "react-router-dom";
 import { Wallet as WalletIcon, LogOut, Coins, Shield, ShieldCheck, Menu, X, Dices, PieChart, Rocket, HelpCircle, Radio, MoreHorizontal, ChevronDown, Compass, ArrowLeftRight, Zap, LayoutGrid, Bell, Bookmark, Recycle, FileText, ExternalLink } from "lucide-react";
-import { SOCIALS, TelegramIcon, XIcon } from "./lib/socials";
+import { SOCIALS, TelegramIcon, XIcon, FomoIcon } from "./lib/socials";
 import { formatUnits } from "ethers";
 import { useWallet } from "./lib/wallet";
 import { short, fmtInt } from "./lib/util";
@@ -147,6 +147,7 @@ function NavSection({ isOwner }: { isOwner: boolean }) {
       {/* Socials — always visible, below the More group */}
       <NavExternal href={SOCIALS.telegram} label="Telegram" icon={<TelegramIcon size={22} />} />
       <NavExternal href={SOCIALS.x} label="X / Twitter" icon={<XIcon size={19} />} />
+      <NavExternal href={SOCIALS.fomo} label="FOMO" icon={<FomoIcon size={22} />} />
     </>
   );
 }
