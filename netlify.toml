@@ -1,0 +1,21 @@
+# Netlify deployment config for Midgard Social (fully on-chain, no serverless deps).
+
+[build]
+  base = "midgard-social"
+  publish = "dist"
+  command = "npm run build"
+
+# Same-origin RPC proxy — fixes Robinhood's duplicated CORS header. MUST come
+# before the SPA catch-all. (Drag-drop deploys use public/_redirects instead,
+# since netlify.toml is not part of the uploaded dist/.)
+[[redirects]]
+  from = "/rpc"
+  to = "https://rpc.mainnet.chain.robinhood.com/"
+  status = 200
+  force = true
+
+# SPA fallback — a real reload on any deep path lands on index.html.
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200

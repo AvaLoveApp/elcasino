@@ -1,0 +1,7 @@
+# Same-origin RPC proxy — fixes Robinhood's duplicated `Access-Control-Allow-Origin: *,*`
+# header (browsers reject it) by serving reads from our own origin. MUST come
+# before the SPA catch-all. Applies on drag-drop deploys too (this file ships in dist/).
+/rpc   https://rpc.mainnet.chain.robinhood.com/   200
+
+# SPA fallback — deep reloads land on index.html (hash routes handle themselves).
+/*     /index.html   200

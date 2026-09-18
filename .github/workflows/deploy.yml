@@ -1,0 +1,60 @@
+name: Deploy to GitHub Pages
+
+# Builds the Vite app and publishes it to GitHub Pages. For a user/org site
+# (elcasino.github.io) the published site is served at https://elcasino.github.io/.
+# The app uses HashRouter, so no 404.html SPA fallback is needed.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Only one deploy at a time; let an in-progress run finish.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - run: npm ci
+
+      - name: Build
+        run: npm run build
+        env:
+          # Public (frontend-safe) build-time vars. Add these under
+          # Settings → Secrets and variables → Actions in the repo. Any left
+          # unset just disables that feature (e.g. no Supabase → chat is hidden).
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+          VITE_PRIVY_APP_ID: ${{ secrets.VITE_PRIVY_APP_ID }}
+          VITE_LIVEKIT_URL: ${{ secrets.VITE_LIVEKIT_URL }}
+          VITE_LIVE_POOL_MINUTES: ${{ secrets.VITE_LIVE_POOL_MINUTES }}
+          VITE_VAPID_PUBLIC_KEY: ${{ secrets.VITE_VAPID_PUBLIC_KEY }}
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
