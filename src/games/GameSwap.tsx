@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Contract, parseEther, parseUnits, formatEther, formatUnits, isAddress } from "ethers";
+import { Contract, parseEther, parseUnits, formatEther, formatUnits, isAddress, MaxUint256 } from "ethers";
 import { ArrowDownUp, Wallet, ExternalLink, AlertTriangle, Loader2 } from "lucide-react";
 import { useWallet } from "../lib/wallet";
-import { ADDR, CHAIN, readProvider, readRouter, erc20Meta } from "../lib/chain";
+import { CHAIN, readProvider, erc20Meta } from "../lib/chain";
+import { lifiQuote, LIFI_NATIVE, type LifiQuote } from "../lib/lifi";
 import { EthMark } from "../components/UnitMark";
 import { fmtInt, short } from "../lib/util";
 
@@ -31,11 +32,11 @@ function TokenLogo({ symbol, logo, size = 20 }: { symbol: string; logo?: string;
 }
 
 /**
- * Per-token swap for a casino room — the room's bet token ⇄ native ETH via the
- * Robinhood-chain UniswapV2 router (same one MIDGARD trades on). Ported from
- * Avlo's GameSwap tab; wired to our on-chain router instead of LI.FI (which
- * doesn't route Robinhood chain). Lives beside the game as the [Swap] tab.
+ * Per-token swap for a casino room — the room's bet token ⇄ native ETH, routed
+ * through the LI.FI aggregator (Robinhood tokens live on Uniswap v4/v3/Kyber,
+ * which a plain V2 router can't reach). Lives beside the game as the [Swap] tab.
  */
+const SLIPPAGE = 0.02; // 2% — casino-token pools can be shallow
 export function GameSwap({ token, symbol: symIn, decimals: decIn, logo }: {
   token: string;
   symbol?: string;
@@ -50,7 +51,7 @@ export function GameSwap({ token, symbol: symIn, decimals: decIn, logo }: {
   const [amount, setAmount] = useState("");
   const [ethBal, setEthBal] = useState<number | null>(null);
   const [tokBal, setTokBal] = useState<number | null>(null);
-  const [estOut, setEstOut] = useState<number>(0);
+  const [quote, setQuote] = useState<LifiQuote | null>(null);
   const [quoting, setQuoting] = useState(false);
   const [noRoute, setNoRoute] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -80,30 +81,31 @@ export function GameSwap({ token, symbol: symIn, decimals: decIn, logo }: {
 
   const amt = parseFloat(amount) || 0;
   const payBal = buy ? ethBal : tokBal;
+  const outDec = buy ? meta.decimals : 18;
+  const estOut = quote ? Number(formatUnits(quote.toAmount, outDec)) : 0;
+  const minOut = quote ? Number(formatUnits(quote.toAmountMin, outDec)) : 0;
 
-  // Live quote from the router — debounced. getAmountsOut reverts when no pair
-  // exists, which we surface as "no route".
+  // Live LI.FI quote — debounced. A thrown quote (no venue) surfaces as "no route".
   const quoteReq = useRef(0);
   useEffect(() => {
-    if (!valid || !amt) { setEstOut(0); setNoRoute(false); return; }
+    if (!valid || !amt) { setQuote(null); setNoRoute(false); return; }
     const id = ++quoteReq.current;
     setQuoting(true);
     const t = setTimeout(async () => {
       try {
-        const path = buy ? [ADDR.weth, token] : [token, ADDR.weth];
-        const inWei = buy ? parseEther(String(amt)) : parseUnits(String(amt), meta.decimals);
-        const outs: bigint[] = await readRouter().getAmountsOut(inWei, path);
-        const out = outs[outs.length - 1];
-        const outDec = buy ? meta.decimals : 18;
-        if (id === quoteReq.current) { setEstOut(Number(formatUnits(out, outDec))); setNoRoute(false); }
+        const fromToken = buy ? LIFI_NATIVE : token;
+        const toToken = buy ? token : LIFI_NATIVE;
+        const fromAmount = buy ? parseEther(String(amt)) : parseUnits(String(amt), meta.decimals);
+        const q = await lifiQuote({ fromToken, toToken, fromAmount, fromAddress: w.address || undefined, slippage: SLIPPAGE });
+        if (id === quoteReq.current) { setQuote(q); setNoRoute(false); }
       } catch {
-        if (id === quoteReq.current) { setEstOut(0); setNoRoute(true); }
+        if (id === quoteReq.current) { setQuote(null); setNoRoute(true); }
       } finally {
         if (id === quoteReq.current) setQuoting(false);
       }
-    }, 350);
+    }, 400);
     return () => clearTimeout(t);
-  }, [amt, buy, token, valid, meta.decimals]);
+  }, [amt, buy, token, valid, meta.decimals, w.address]);
 
   function setPct(p: number) {
     const bal = buy ? ethBal : tokBal;
@@ -121,31 +123,28 @@ export function GameSwap({ token, symbol: symIn, decimals: decIn, logo }: {
     if (!w.address) { w.connect(); return; }
     if (!w.chainOk) { await w.switchChain(); return; }
     if (!amt || !valid) return;
-    const router = w.routerWrite();
-    if (!router) return;
+    if (!w.signer) { setErr("Wallet not ready."); return; }
     setBusy(true);
     try {
-      const deadline = Math.floor(Date.now() / 1000) + 600;
-      if (buy) {
-        const path = [ADDR.weth, token];
-        const tx = await router.swapExactETHForTokensSupportingFeeOnTransferTokens(
-          0n, path, w.address, deadline, { value: parseEther(amount) });
-        await tx.wait();
-      } else {
-        const amountIn = parseUnits(amount, meta.decimals);
+      const fromToken = buy ? LIFI_NATIVE : token;
+      const toToken = buy ? token : LIFI_NATIVE;
+      const fromAmount = buy ? parseEther(amount) : parseUnits(amount, meta.decimals);
+      // Re-quote with the real sender so the transactionRequest is valid for them.
+      const q = await lifiQuote({ fromToken, toToken, fromAmount, fromAddress: w.address, slippage: SLIPPAGE });
+      if (!buy) {
         const erc = new Contract(token, ERC20, w.signer);
-        const cur: bigint = await erc.allowance(w.address, ADDR.router);
-        if (cur < amountIn) {
-          const ap = await erc.approve(ADDR.router, amountIn);
-          await ap.wait();
-        }
-        const path = [token, ADDR.weth];
-        const tx = await router.swapExactTokensForETHSupportingFeeOnTransferTokens(
-          amountIn, 0n, path, w.address, deadline);
-        await tx.wait();
+        const cur: bigint = await erc.allowance(w.address, q.approvalAddress);
+        if (cur < fromAmount) { const ap = await erc.approve(q.approvalAddress, MaxUint256); await ap.wait(); }
       }
+      if (!q.tx.to || !q.tx.data) throw new Error("Router returned no transaction.");
+      const tx = await w.signer.sendTransaction({
+        to: q.tx.to,
+        data: q.tx.data,
+        value: q.tx.value ? BigInt(q.tx.value) : 0n,
+      });
+      await tx.wait();
       setOk(`Swapped ${amount} ${buy ? "ETH" : meta.symbol}.`);
-      setAmount("");
+      setAmount(""); setQuote(null);
     } catch (e: any) {
       setErr(e?.shortMessage || e?.reason || e?.message || "Swap failed.");
     } finally { setBusy(false); }
@@ -175,7 +174,7 @@ export function GameSwap({ token, symbol: symIn, decimals: decIn, logo }: {
         <AlertTriangle size={13} className="text-amber-400 shrink-0 mt-0.5" />
         <div className="text-[10px] leading-relaxed text-amber-200/80">
           <span className="font-bold text-amber-300 uppercase tracking-wider">Swap at your own risk.</span>{" "}
-          Robinhood-chain token, swapped against ETH via the on-chain router. Anyone can launch a token — verify the contract first.
+          Robinhood-chain token, swapped against ETH and routed via LI.FI (best price across the chain's DEXs). Anyone can launch a token — verify the contract first.
         </div>
       </div>
 
@@ -202,7 +201,7 @@ export function GameSwap({ token, symbol: symIn, decimals: decIn, logo }: {
       </div>
 
       <div className="flex justify-center -my-1.5 relative z-10">
-        <button onClick={() => { setBuy((b) => !b); setAmount(""); setEstOut(0); }}
+        <button onClick={() => { setBuy((b) => !b); setAmount(""); setQuote(null); }}
           className="rounded-full border border-ink-600 bg-ink-850 p-2 hover:border-blood-500 hover:text-blood-400 transition">
           <ArrowDownUp size={15} />
         </button>
@@ -221,7 +220,7 @@ export function GameSwap({ token, symbol: symIn, decimals: decIn, logo }: {
 
       {noRoute && (
         <div className="text-[11px] text-amber-300 font-mono">
-          No route on the router for this pair — it may only trade on a different DEX.
+          No route found for this pair right now — try again shortly or a different amount.
         </div>
       )}
       {!noRoute && rate > 0 && (
@@ -229,9 +228,15 @@ export function GameSwap({ token, symbol: symIn, decimals: decIn, logo }: {
           1 {buy ? "ETH" : meta.symbol} ≈ {buy ? fmtInt(rate) : rate.toFixed(8)} {buy ? meta.symbol : "ETH"}
         </div>
       )}
+      {!noRoute && minOut > 0 && (
+        <div className="flex items-center justify-between text-[11px] font-mono">
+          <span className="text-bone-500">Min received ({SLIPPAGE * 100}% slip)</span>
+          <span className="text-bone-300">{buy ? fmtInt(minOut) : minOut.toFixed(6)} {buy ? meta.symbol : "ETH"}</span>
+        </div>
+      )}
 
       <p className="text-[10px] text-bone-600 font-mono leading-relaxed">
-        min received is 0 — pools can be shallow, expect slippage. Fee-on-transfer tokens are supported.
+        Routed via LI.FI · pools can be shallow, expect slippage. Fee-on-transfer tokens are supported.
       </p>
 
       {err && <div className="text-blood-200 text-sm bg-blood-900/20 border border-blood-500/40 rounded-lg px-3 py-2">{err}</div>}

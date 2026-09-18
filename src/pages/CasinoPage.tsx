@@ -14,6 +14,7 @@ import { GameTypeIcon } from "../components/GameTypeIcon";
 import { CreateGameDialog } from "../components/CreateGameDialog";
 import { loadRobinhoodTokens, loadDexMap, DexToken, fmtUsdShort, ROBINHOOD_CHAIN } from "../lib/dexscreener";
 import { RecentBets } from "../components/RecentBets";
+import { PonsBanner } from "../components/PonsBanner";
 
 const PAGE = 24;
 const DEPLOY_PAGE = 50;   // RWA / Other deploy shelves paginate at 50 per page
@@ -145,6 +146,9 @@ export default function CasinoPage() {
           </div>
         </div>
       </div>
+
+      {/* ELCAS-on-Pons launch banner */}
+      <div className="mb-4"><PonsBanner /></div>
 
       {/* Top action tabs — Analytics · Your positions · Create room, side by side */}
       <div className="grid grid-cols-3 gap-1.5 p-1 mb-4 rounded-xl border border-ink-700/60 bg-ink-900/40">

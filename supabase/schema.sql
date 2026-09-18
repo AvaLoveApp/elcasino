@@ -436,6 +436,31 @@ create policy mm_wallets_write  on public.mm_wallets for insert with check (true
 create policy mm_wallets_update on public.mm_wallets for update using (true) with check (true);
 create policy mm_wallets_delete on public.mm_wallets for delete using (true);
 
+-- ── App config (admin-editable, single row id=1) ────────────────────────────
+-- Lets the owner set the ELCAS token / fee token / creator fee / Pons launchpad
+-- link from the in-app Admin panel and have every visitor pick it up — no
+-- redeploy. Casual layer (permissive RLS); the edit UI is gated on the on-chain
+-- registry owner in the client.
+create table if not exists public.app_config (
+  id                  int primary key default 1,
+  elcas_token         text not null default '',
+  fee_token           text not null default '',
+  creator_fee_bps     int  not null default 200,   -- 200 = 2%
+  pons_launchpad_url  text not null default '',
+  pons_logo_url       text not null default '',
+  updated_at          timestamptz not null default now(),
+  constraint app_config_singleton check (id = 1)
+);
+insert into public.app_config (id) values (1) on conflict (id) do nothing;
+
+alter table public.app_config enable row level security;
+drop policy if exists app_config_read   on public.app_config;
+drop policy if exists app_config_write  on public.app_config;
+drop policy if exists app_config_update on public.app_config;
+create policy app_config_read   on public.app_config for select using (true);
+create policy app_config_write  on public.app_config for insert with check (true);
+create policy app_config_update on public.app_config for update using (true) with check (true);
+
 -- ── TTL cleanup ─────────────────────────────────────────────────────────────
 -- Keep the most recent 200 messages and drop anything older than 24h.
 create or replace function public.midchat_cleanup() returns void

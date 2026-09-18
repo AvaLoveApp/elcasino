@@ -8,6 +8,7 @@ import { RWA_PRESETS } from "../lib/rwa";
 import { short } from "../lib/util";
 import { MarketMakerPanel } from "../components/MarketMakerPanel";
 import { AnnouncePanel } from "../components/AnnouncePanel";
+import { useAppConfig, saveAppConfig, AppConfig } from "../lib/appConfig";
 
 type Snap = {
   owner: string;
@@ -92,12 +93,102 @@ export default function AdminPage() {
         </p>
       </div>
 
+      <LaunchConfigPanel />
       <MarketMakerPanel />
       <AnnouncePanel />
       <PausePanel paused={snap.paused} onDone={load} />
       <GatePanel gateToken={snap.gateToken} minHold={snap.minHold} onDone={load} />
       <ModulesPanel modules={snap.modules} onDone={load} />
       <MidgardPairsPanel />
+    </div>
+  );
+}
+
+// -------------------------------------------------------- Launch config -----
+
+/**
+ * Owner-editable launch config (stored in Supabase `app_config`, id=1). Set the
+ * ELCAS token address, the fee token, the creator fee, and the Pons launchpad
+ * link here — every visitor picks them up with no redeploy. ELCAS is a flat
+ * platform token launched on Pons; its fees are buyback & burn.
+ */
+function LaunchConfigPanel() {
+  const { config, refresh } = useAppConfig();
+  const [form, setForm] = useState<AppConfig>(config);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const [ok, setOk] = useState<string | null>(null);
+
+  // Re-seed the form when the loaded config arrives/changes.
+  useEffect(() => { setForm(config); }, [config]);
+
+  const set = (k: keyof AppConfig, v: string | number) => setForm((f) => ({ ...f, [k]: v as any }));
+  const addrBad = (a: string) => a.length > 0 && !isAddress(a);
+
+  async function save() {
+    setErr(null); setOk(null);
+    if (addrBad(form.elcasToken) || addrBad(form.feeToken)) { setErr("Enter valid token addresses (or leave blank)."); return; }
+    setBusy(true);
+    try {
+      await saveAppConfig({
+        ...form,
+        elcasToken: form.elcasToken.trim(),
+        feeToken: form.feeToken.trim(),
+        creatorFeeBps: Math.max(0, Math.round(Number(form.creatorFeeBps) || 0)),
+      });
+      await refresh();
+      setOk("Saved — live across the site.");
+    } catch (e: any) {
+      setErr(e?.message || "Save failed. Make sure the app_config table exists in Supabase.");
+    } finally { setBusy(false); }
+  }
+
+  const field = "w-full bg-ink-900/70 border border-ink-600 rounded-lg px-3 py-2 text-sm outline-none focus:border-blood-500 font-mono";
+  return (
+    <div className="panel p-4 sm:p-5">
+      <div className="flex items-center gap-2 mb-1 text-blood-400">
+        <Coins size={15} />
+        <span className="font-mono text-[10px] uppercase tracking-[0.2em]">ELCAS launch config</span>
+      </div>
+      <p className="text-sm text-bone-400 mb-3">
+        ELCAS is a flat platform token launched on <b className="text-bone-200">Pons</b> — fees are <b className="text-emerald-300">buyback &amp; burn</b>.
+        Set these once; they show on the Trade, EL-Casino and Flywheel pages instantly, no redeploy.
+      </p>
+
+      <div className="grid sm:grid-cols-2 gap-3">
+        <label className="block">
+          <span className="text-[11px] text-bone-500 font-mono uppercase tracking-wider">ELCAS token address</span>
+          <input value={form.elcasToken} onChange={(e) => set("elcasToken", e.target.value.trim())} placeholder="0x… (leave blank until launched)"
+            className={`${field} mt-1 ${addrBad(form.elcasToken) ? "border-blood-500" : ""}`} />
+        </label>
+        <label className="block">
+          <span className="text-[11px] text-bone-500 font-mono uppercase tracking-wider">Fee token address</span>
+          <input value={form.feeToken} onChange={(e) => set("feeToken", e.target.value.trim())} placeholder="0x… (token fees come in / to buy back)"
+            className={`${field} mt-1 ${addrBad(form.feeToken) ? "border-blood-500" : ""}`} />
+        </label>
+        <label className="block">
+          <span className="text-[11px] text-bone-500 font-mono uppercase tracking-wider">Creator fee (%)</span>
+          <input type="number" step="0.1" min="0" value={form.creatorFeeBps / 100}
+            onChange={(e) => set("creatorFeeBps", Math.round((parseFloat(e.target.value) || 0) * 100))}
+            placeholder="2" className={`${field} mt-1`} />
+        </label>
+        <label className="block">
+          <span className="text-[11px] text-bone-500 font-mono uppercase tracking-wider">Pons launchpad link</span>
+          <input value={form.ponsLaunchpadUrl} onChange={(e) => set("ponsLaunchpadUrl", e.target.value.trim())} placeholder="https://pons.…"
+            className={`${field} mt-1`} />
+        </label>
+        <label className="block sm:col-span-2">
+          <span className="text-[11px] text-bone-500 font-mono uppercase tracking-wider">Pons logo URL</span>
+          <input value={form.ponsLogoUrl} onChange={(e) => set("ponsLogoUrl", e.target.value.trim())} placeholder="https://…/pons-logo.png"
+            className={`${field} mt-1`} />
+        </label>
+      </div>
+
+      {err && <div className="text-blood-200 text-sm bg-blood-900/20 border border-blood-500/40 rounded-lg px-3 py-2 mt-3">{err}</div>}
+      {ok && <div className="text-emerald-300 text-sm bg-emerald-900/20 border border-emerald-500/30 rounded-lg px-3 py-2 mt-3">{ok}</div>}
+      <button onClick={save} disabled={busy} className="btn-primary mt-3 px-5 py-2.5 disabled:opacity-50">
+        {busy ? "Saving…" : "Save launch config"}
+      </button>
     </div>
   );
 }

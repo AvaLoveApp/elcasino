@@ -97,7 +97,9 @@ function NavRow({ item, badge = 0 }: { item: NavDef; badge?: number }) {
               </span>
             )}
           </span>
-          <span className={`text-[17px] ${item.label === "EL-Casino" ? "mg-neon-soft font-extrabold tracking-tight" : ""}`}>{item.label}</span>
+          {item.label === "EL-Casino"
+            ? <Wordmark className="text-[19px]" />
+            : <span className="text-[17px]">{item.label}</span>}
         </>
       )}
     </NavLink>
@@ -223,7 +225,7 @@ function Sparkle() {
 function BrandButton() {
   const nav = useNavigate();
   return (
-    <button onClick={() => nav("/analytics")} title="ELCAS Terminal · live analytics"
+    <button onClick={() => nav("/casino?view=analytics")} title="ELCAS Terminal · live casino analytics"
       className="!mt-4 flex w-full items-center justify-center gap-2.5 rounded-xl bg-blood-500 py-3.5 text-[15px] font-extrabold tracking-tight text-ink-950 shadow-blood transition hover:bg-blood-400">
       <img src="./elcasino_logo.png" alt=""
         className="h-7 w-7 rounded-md object-cover ring-1 ring-ink-950/20" draggable={false} />

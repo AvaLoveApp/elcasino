@@ -8,6 +8,7 @@ import { WalletProvider } from "./lib/wallet";
 import { PrivyRoot } from "./lib/privy";
 import { LivePlayerProvider } from "./lib/livePlayer";
 import { ComposeProvider } from "./lib/compose";
+import { AppConfigProvider } from "./lib/appConfig";
 import { wagmiConfig } from "./lib/wagmi";
 import { WagmiBridge } from "./lib/WagmiBridge";
 import App from "./App";
@@ -39,7 +40,9 @@ createRoot(document.getElementById("root")!).render(
               <ComposeProvider>
                 <WagmiBridge />
                 <LivePlayerProvider>
-                  <App />
+                  <AppConfigProvider>
+                    <App />
+                  </AppConfigProvider>
                 </LivePlayerProvider>
                 <Toaster position="bottom-right" toastOptions={{
                   style: { background: "#1a1a1a", color: "#e5e0d8", border: "1px solid #3a2f2f", fontFamily: "monospace", fontSize: "13px" },

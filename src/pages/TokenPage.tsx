@@ -16,6 +16,7 @@ import { AppsTab } from "../components/AppsTab";
 import { Feed } from "../components/Feed";
 import { SectionTabs } from "../components/SectionTabs";
 import { TradeTerminal } from "../components/TradeTerminal";
+import { PonsBanner } from "../components/PonsBanner";
 import { TrendingRail } from "../components/TrendingRail";
 import { RecentActivity } from "../components/RightRail";
 import { loadTokenStats, TokenStats } from "../lib/analytics";
@@ -232,6 +233,8 @@ export default function TokenPage({ section }: { section?: Tab } = {}) {
 
       {section === "trade" && (
         <div className="mt-1">
+          {/* ELCAS launches on Pons — flat platform token, buyback & burn. */}
+          <div className="mb-3"><PonsBanner /></div>
           {/* ELCAS token hidden for now — the trade terminal is a casino-token
               exchange until the ELCAS economy launches. */}
           <TradeTerminal hideMidgard midgard={s ? {

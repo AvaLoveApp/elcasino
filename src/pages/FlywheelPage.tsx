@@ -7,6 +7,8 @@ import { loadCasinoTokens, isBlockedCasinoToken } from "../lib/casino";
 import { EthMark } from "../components/UnitMark";
 import { fmtInt, short } from "../lib/util";
 import { CopyButton } from "../components/CopyButton";
+import { useAppConfig, hasElcasToken as cfgHasToken } from "../lib/appConfig";
+import { PonsBanner } from "../components/PonsBanner";
 
 /**
  * ELCAS Flywheel — the self-reinforcing loop that turns casino activity into
@@ -20,11 +22,8 @@ import { CopyButton } from "../components/CopyButton";
 
 // Wallet that gathers all platform fees (deploy + per-bet) before buyback/burn.
 const FEE_COLLECTOR = "0x85228f9817798E97c599ec4B2BEd0F1104b51273";
-// ELCAS token — NOT deployed yet. Paste the final token address here once it
-// launches and the page will start reading held/burned/price live. Until then
-// the flywheel shows the fee side (real) and marks the ELCAS side as pending.
-const ELCAS_TOKEN = "";
-const hasElcasToken = /^0x[a-fA-F0-9]{40}$/.test(ELCAS_TOKEN);
+// ELCAS token comes from the admin launch config (set it in Admin → ELCAS launch
+// config once the token is live on Pons). Until then the ELCAS side reads pending.
 // Standard burn sinks — ELCAS sent here is out of circulation for good.
 const BURN_ADDRS = [
   "0x000000000000000000000000000000000000dEaD",
@@ -46,6 +45,9 @@ type Data = {
 };
 
 export default function FlywheelPage() {
+  const { config } = useAppConfig();
+  const elcasToken = config.elcasToken;
+  const tokenSet = cfgHasToken(config);
   const [d, setD] = useState<Data | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -89,21 +91,21 @@ export default function FlywheelPage() {
 
         // ELCAS side only reads once the token address is set — pending until launch.
         let elcasPrice = 0, heldElcas = 0, burnedElcas = 0;
-        if (hasElcasToken) {
-          const elcas = new Contract(ELCAS_TOKEN, ERC20_ABI, readProvider);
+        if (tokenSet) {
+          const elcas = new Contract(elcasToken, ERC20_ABI, readProvider);
           const [heldWei, burnWeis, ep] = await Promise.all([
             elcas.balanceOf(FEE_COLLECTOR).catch(() => 0n),
             Promise.all(BURN_ADDRS.map((a) => elcas.balanceOf(a).catch(() => 0n))),
-            dexPricesUsd([ELCAS_TOKEN]).catch(() => new Map<string, number>()),
+            dexPricesUsd([elcasToken]).catch(() => new Map<string, number>()),
           ]);
-          elcasPrice = ep.get(ELCAS_TOKEN.toLowerCase()) ?? 0;
+          elcasPrice = ep.get(elcasToken.toLowerCase()) ?? 0;
           heldElcas = Number(formatUnits(heldWei as bigint, 18));
           burnedElcas = (burnWeis as bigint[]).reduce((s, b) => s + Number(formatUnits(b, 18)), 0);
         }
         if (!live) return;
         setD({
           totalUsd, holdings,
-          tokenLive: hasElcasToken,
+          tokenLive: tokenSet,
           elcasPrice,
           heldElcas,
           heldElcasUsd: heldElcas * elcasPrice,
@@ -116,7 +118,7 @@ export default function FlywheelPage() {
     load();
     const t = setInterval(load, 30_000);
     return () => { live = false; clearInterval(t); };
-  }, []);
+  }, [elcasToken, tokenSet]);
 
   return (
     <div className="animate-fade-up max-w-5xl mx-auto space-y-6">
@@ -136,6 +138,9 @@ export default function FlywheelPage() {
           <span className="text-blood-300 font-semibold">burned</span> — a self-reinforcing loop that makes ELCAS scarcer as the casino grows.
         </p>
       </div>
+
+      {/* Pons launch banner */}
+      <PonsBanner />
 
       {/* Flywheel animation */}
       <Flywheel data={d} loading={loading} />
@@ -192,12 +197,12 @@ export default function FlywheelPage() {
       <div className="panel p-4 space-y-3">
         <div className="font-mono text-[10px] uppercase tracking-[0.2em] text-bone-500">On-chain</div>
         <AddrRow label="Fee collector" addr={FEE_COLLECTOR} />
-        {hasElcasToken
-          ? <AddrRow label="ELCAS token" addr={ELCAS_TOKEN} isToken />
+        {tokenSet
+          ? <AddrRow label="ELCAS token" addr={elcasToken} isToken />
           : (
             <div className="flex items-center gap-2 flex-wrap">
               <span className="font-mono text-[11px] text-bone-400 w-24 shrink-0">ELCAS token</span>
-              <span className="font-mono text-xs text-amber-400/80">not deployed yet — paste the address in FlywheelPage.tsx once it launches</span>
+              <span className="font-mono text-xs text-amber-400/80">not launched yet — set it in Admin → ELCAS launch config</span>
             </div>
           )}
         <p className="text-[11px] text-bone-600 leading-relaxed pt-1">
