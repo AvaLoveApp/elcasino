@@ -143,10 +143,16 @@ export const POSTS_ABI = [
 // `Access-Control-Allow-Origin: *,*` header that the browser rejects, breaking
 // direct reads. We default to a SAME-ORIGIN `/rpc` path (proxied by the Vite dev
 // server locally and by Netlify in prod) so the browser never runs a CORS check.
-// Override with VITE_RPC_URL to point at the RPC directly on a host without a proxy.
+// GitHub Pages is a STATIC host with no proxy — a `/rpc` POST there 405s and the
+// whole app's on-chain reads fail (and retry-storm). On *.github.io we therefore
+// hit the RPC directly; CORS works in practice and it's infinitely better than a
+// dead proxy path. Override with VITE_RPC_URL to force a specific endpoint.
+const _onGithubPages = typeof window !== "undefined" && window.location.hostname.endsWith("github.io");
 export const RPC_READ_URL: string =
   ((import.meta as any).env?.VITE_RPC_URL as string | undefined) ||
-  (typeof window !== "undefined" ? new URL("/rpc", window.location.origin).href : CHAIN.rpc);
+  (typeof window === "undefined" ? CHAIN.rpc
+    : _onGithubPages ? CHAIN.rpc
+    : new URL("/rpc", window.location.origin).href);
 
 // A read-only provider so the app renders profiles without a wallet. Ethers
 // coalesces concurrent reads into batched JSON-RPC payloads; batchMaxCount caps
