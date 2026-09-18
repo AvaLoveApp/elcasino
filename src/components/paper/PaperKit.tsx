@@ -60,6 +60,14 @@ export function PaperFrame({ toc, hero, children }: { toc: TocItem[]; hero: Reac
               {toc.map((t) => (
                 <li key={t.id}>
                   <a href={`#${t.id}`}
+                    onClick={(e) => {
+                      // HashRouter owns the URL hash — a plain `#id` jump would
+                      // clobber the route (→ "Not found"). Scroll in JS instead
+                      // and leave the router hash (e.g. #/audit) untouched.
+                      e.preventDefault();
+                      const el = document.getElementById(t.id);
+                      if (el) { el.scrollIntoView({ behavior: "smooth", block: "start" }); setActive(t.id); }
+                    }}
                     className={`block rounded-md py-1.5 pr-2 text-[12.5px] leading-snug transition-colors ${t.depth ? "pl-3 text-[11.5px]" : "pl-0"} ${active === t.id ? "text-blood-400 font-semibold" : "text-bone-500 hover:text-bone-100"}`}>
                     {t.label}
                   </a>
