@@ -17,7 +17,7 @@ import { RecentBets } from "../components/RecentBets";
 import { PonsBanner } from "../components/PonsBanner";
 
 const PAGE = 24;
-const DEPLOY_PAGE = 50;   // RWA / Other deploy shelves paginate at 50 per page
+const DEPLOY_PAGE = 10;   // RWA / Other deploy shelves paginate at 10 per page
 
 // Every tokenized asset (the full 192-token rh-scan registry) plus the curated
 // presets counts as a Real World Asset for classification + column routing.
