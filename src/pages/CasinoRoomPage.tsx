@@ -1,11 +1,11 @@
 import { useEffect, useState } from "react";
 import { useParams, Link } from "react-router-dom";
 import { Contract, formatUnits, isAddress } from "ethers";
-import { ExternalLink, ShieldCheck, Dices, ArrowLeft, Share2, MessageSquare } from "lucide-react";
+import { ExternalLink, ShieldCheck, Dices, ArrowLeft } from "lucide-react";
 import { CASINO_GAMES, CasinoGameKind, GameKey, loadFactoryStats } from "../lib/casino";
 import { CHAIN, readProvider, erc20Meta } from "../lib/chain";
 import { GAME_ERC20_ABI } from "../lib/casinoGame";
-import { short } from "../lib/util";
+import { short, fmtAmount } from "../lib/util";
 import { GameTypeIcon } from "../components/GameTypeIcon";
 import { CoinflipGame } from "../components/games/CoinflipGame";
 import { BlackjackGame } from "../games/blackjack/BlackjackGame";
@@ -21,7 +21,6 @@ import { GameEarnTab } from "../games/GameEarnTab";
 import { PendingBets } from "../games/PendingBets";
 import { RoomChat } from "../games/RoomChat";
 import { GameSwap } from "../games/GameSwap";
-import { ShareToFeed } from "../components/ShareToFeed";
 import { ChatSlotProvider } from "../games/ControlsTabs";
 import { useCompose } from "../lib/compose";
 import { dexTokenByAddress } from "../lib/dexscreener";
@@ -53,6 +52,7 @@ export default function CasinoRoomPage() {
   const game = CASINO_GAMES.find((g) => g.key === gameKey as GameKey);
   const [pageView, setPageView] = useState<PageView>("bet");
   const [factoryOk, setFactoryOk] = useState<boolean | null>(null);
+  const [verified, setVerified] = useState<boolean | null>(null);
   const [dexUrl, setDexUrl] = useState<string | null>(null);
   const [tokMeta, setTokMeta] = useState<{ logo: string; betName: string; token: string; symbol: string; decimals: number; pool: number; volume: number; stakers: number; bets: number; rtp: number; fee: number } | null>(null);
   const { openCompose } = useCompose();
@@ -63,9 +63,15 @@ export default function CasinoRoomPage() {
       loadFactoryStats(game.factory).then((s) => { if (live) setFactoryOk(s.total >= 0); }).catch(() => {
         if (live) setFactoryOk(false);
       });
+      // Real verification — is this room a registered game of the official
+      // factory? (factory.isGame(addr) is the on-chain registry mapping.)
+      if (address) {
+        const fc = new Contract(game.factory, ["function isGame(address) view returns (bool)"], readProvider);
+        fc.isGame(address).then((ok: boolean) => { if (live) setVerified(!!ok); }).catch(() => { if (live) setVerified(null); });
+      }
     }
     return () => { live = false; };
-  }, [game]);
+  }, [game, address]);
 
   // Resolve the room's bet token and its DexScreener pool page.
   useEffect(() => {
@@ -89,7 +95,10 @@ export default function CasinoRoomPage() {
         const fee = cfg ? Number(cfg[1]) : 0;
         if (live) setTokMeta({ logo: String(gi[2] || ""), betName: String(gi[3] || ""), token: tokenAddr, symbol, decimals, pool, volume, stakers, bets, rtp, fee });
         const t = await dexTokenByAddress(tokenAddr);
-        if (live) setDexUrl(t?.url ?? `https://dexscreener.com/search?q=${tokenAddr}`);
+        // Prefer the exact Robinhood pair page from the API; else a Robinhood-
+        // SCOPED token page (never the global search, which can surface a
+        // same-address token on another chain — the "wrong coin" bug).
+        if (live) setDexUrl(t?.url ?? `https://dexscreener.com/robinhood/${tokenAddr}`);
       } catch {}
     })();
     return () => { live = false; };
@@ -115,31 +124,39 @@ export default function CasinoRoomPage() {
       <div className="flex items-center gap-3 px-4 sm:px-6 py-3 border-b border-ink-700/60 bg-black/40">
         <Link to={`/casino?g=${game.key}`} title={`Back to ${game.label}`}
           className="shrink-0 text-bone-400 hover:text-blood-400 transition"><ArrowLeft size={18} /></Link>
-        <span className="relative h-9 w-9 shrink-0">
-          <span className="h-9 w-9 rounded-xl flex items-center justify-center text-white"
+        {/* Token logo is the primary mark; the game type is a small corner badge. */}
+        <span className="relative h-10 w-10 shrink-0">
+          <span className="h-10 w-10 rounded-xl overflow-hidden flex items-center justify-center text-white relative ring-1 ring-ink-600"
             style={{ background: `linear-gradient(140deg, ${game.color}, rgba(0,0,0,0.6))` }}>
-            <GameTypeIcon type={game.key} size={20} className="text-white" />
+            <GameTypeIcon type={game.key} size={20} className="text-white opacity-90" />
+            {tokMeta?.logo && (
+              <img src={tokMeta.logo} alt="" className="absolute inset-0 h-full w-full object-cover"
+                onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }} />
+            )}
           </span>
-          {tokMeta?.logo && (
-            <img src={tokMeta.logo} alt="" className="absolute -bottom-1 -right-1 h-4 w-4 rounded-full object-cover ring-1 ring-black"
-              onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }} />
-          )}
+          <span className="absolute -bottom-1 -right-1 h-4 w-4 rounded-md flex items-center justify-center ring-1 ring-black"
+            style={{ background: `linear-gradient(140deg, ${game.color}, rgba(0,0,0,0.7))` }}>
+            <GameTypeIcon type={game.key} size={10} className="text-white" />
+          </span>
         </span>
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
             <h1 className="text-base font-bold tracking-tight truncate">{tokMeta?.betName || `${game.label} room`}</h1>
-            <span className="hidden sm:inline-flex items-center gap-1 text-[9px] font-mono uppercase tracking-wider text-emerald-400">
-              <ShieldCheck size={10} /> verified
-            </span>
+            {verified === true ? (
+              <span className="hidden sm:inline-flex items-center gap-1 text-[9px] font-mono uppercase tracking-wider text-emerald-400" title="This room is a registered game of the official on-chain factory.">
+                <ShieldCheck size={10} /> verified
+              </span>
+            ) : verified === false ? (
+              <span className="hidden sm:inline-flex items-center gap-1 text-[9px] font-mono uppercase tracking-wider text-amber-400" title="This address is not a registered game of the official factory.">
+                <ShieldCheck size={10} /> unverified
+              </span>
+            ) : null}
           </div>
           <a href={`${CHAIN.explorer}/address/${address}`} target="_blank" rel="noreferrer"
             className="font-mono text-[11px] text-bone-500 hover:text-blood-400 inline-flex items-center gap-1">
             {short(address)} <ExternalLink size={9} />
           </a>
         </div>
-        <ShareToFeed share={{ kind: "game", text: `Playing ${tokMeta?.betName || game.label} on EL-Casino 🎲`,
-          meta: { gameKey: game.key, address, label: tokMeta?.betName || `${game.label} room`, token: tokMeta?.token, symbol: tokMeta?.symbol, logo: tokMeta?.logo,
-            pool: tokMeta?.pool, volume: tokMeta?.volume, stakers: tokMeta?.stakers, bets: tokMeta?.bets, rtp: tokMeta?.rtp, fee: tokMeta?.fee } }} />
         {dexUrl && (
           <a href={dexUrl} target="_blank" rel="noreferrer"
             className="inline-flex items-center gap-1 text-[10px] font-mono px-2 py-1 rounded border border-emerald-500/30 text-emerald-300 hover:border-emerald-400/60">
@@ -236,7 +253,7 @@ function RoomPoolBar({ address }: { address: string }) {
     return () => { live = false; clearInterval(t); };
   }, [address]);
 
-  const f = (v: bigint) => d ? Number(formatUnits(v, d.dec)).toLocaleString(undefined, { maximumFractionDigits: 2 }) : "…";
+  const f = (v: bigint) => d ? fmtAmount(Number(formatUnits(v, d.dec))) : "…";
   const item = (label: string, val: string, cls = "text-bone-100") => (
     <div className="shrink-0">
       <div className="text-[8px] font-mono uppercase tracking-wider text-bone-500">{label}</div>
@@ -335,7 +352,7 @@ function RoomAnalytics({ address }: { address: string }) {
   }, [address]);
 
   if (!d) return <div className="panel p-8 text-center text-bone-500">loading analytics…</div>;
-  const f = (v: bigint, mx = 2) => Number(formatUnits(v, d.dec)).toLocaleString(undefined, { maximumFractionDigits: mx });
+  const f = (v: bigint, _mx = 2) => fmtAmount(Number(formatUnits(v, d.dec)));
 
   const volN = Number(formatUnits(d.volume, d.dec));
   const payN = Number(formatUnits(d.payouts, d.dec));
@@ -355,7 +372,7 @@ function RoomAnalytics({ address }: { address: string }) {
         <AStat label="Fees collected" value={`${f(d.fees)} ${d.symbol}`} accent="amber" />
         <AStat label="Total payouts" value={`${f(d.payouts)} ${d.symbol}`} />
         <AStat label="House edge (realized)" value={`${edge.toFixed(1)}%`} accent={edge >= 0 ? "emerald" : "blood"} />
-        <AStat label="Net to house" value={`${net >= 0 ? "" : "−"}${Math.abs(net).toLocaleString(undefined, { maximumFractionDigits: 2 })} ${d.symbol}`} accent={net >= 0 ? "emerald" : "blood"} />
+        <AStat label="Net to house" value={`${net >= 0 ? "" : "−"}${fmtAmount(Math.abs(net))} ${d.symbol}`} accent={net >= 0 ? "emerald" : "blood"} />
       </div>
 
       {/* Realized RTP vs edge bar — how much of wagered volume flowed back to players */}
@@ -374,7 +391,7 @@ function RoomAnalytics({ address }: { address: string }) {
 
       <div className="grid grid-cols-2 md:grid-cols-2 gap-3">
         <AStat label="Status" value={d.paused ? "Paused" : "Live"} accent={d.paused ? "blood" : "emerald"} />
-        <AStat label="Avg bet" value={`${d.flips > 0n ? (volN / Number(d.flips)).toLocaleString(undefined, { maximumFractionDigits: 2 }) : "0"} ${d.symbol}`} />
+        <AStat label="Avg bet" value={`${d.flips > 0n ? fmtAmount(volN / Number(d.flips)) : "0"} ${d.symbol}`} />
       </div>
       <div className="panel p-4 font-mono text-[11px] text-bone-500 flex items-center justify-between gap-2 flex-wrap">
         <span>owner {short(d.owner)}</span>
