@@ -4,6 +4,7 @@ import { Loader2, Wallet, RotateCw } from "lucide-react";
 import { useWallet } from "../../lib/wallet";
 import { readProvider } from "../../lib/chain";
 import { GAME_ERC20_ABI } from "../../lib/casinoGame";
+import { fmtAmount } from "../../lib/util";
 import { logBet } from "../../lib/betfeed";
 import { waitRevealReady, sendGameTx } from "../gameCore";
 import { BetPercents } from "../BetPercents";
@@ -321,7 +322,7 @@ export function CrashGame({ address }: { address: string }) {
   );
 }
 
-function fmt(v: bigint, d = 18, mx = 2) { return Number(formatUnits(v, d)).toLocaleString(undefined, { maximumFractionDigits: mx }); }
+function fmt(v: bigint, d = 18, _mx = 2) { return fmtAmount(Number(formatUnits(v, d))); }
 
 // ── Multiplier curve + area fill + rocket position (ported 1:1 from Avlo) ──
 // viewBox space is 0 0 400 300; the curve rises from the launch pad (20,280)

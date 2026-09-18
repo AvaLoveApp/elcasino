@@ -5,7 +5,7 @@ import { useWallet } from "../lib/wallet";
 import { readProvider } from "../lib/chain";
 import { GAME_ERC20_ABI } from "../lib/casinoGame";
 import { sendGameTx } from "./gameCore";
-import { short } from "../lib/util";
+import { short, fmtAmount } from "../lib/util";
 
 // Shared staking surface — every V3 game is an LP vault: stake the bet token to
 // earn a share of the house fees. Ported from Avlo's Earn tab.
@@ -232,5 +232,5 @@ function Stat({ label, value, accent }: { label: string; value: string; accent?:
   );
 }
 
-function fmt(v: bigint, d = 18, mx = 2) { return Number(formatUnits(v, d)).toLocaleString(undefined, { maximumFractionDigits: mx }); }
+function fmt(v: bigint, d = 18, _mx = 2) { return fmtAmount(Number(formatUnits(v, d))); }
 function errMsg(e: any) { return e?.shortMessage || e?.reason || e?.message || "Failed."; }

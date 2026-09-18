@@ -7,6 +7,7 @@ import { GAME_ERC20_ABI } from "../../lib/casinoGame";
 import { logBet } from "../../lib/betfeed";
 import { waitRevealReady, sendGameTx } from "../gameCore";
 import { BetPercents } from "../BetPercents";
+import { fmtAmount } from "../../lib/util";
 import rouletteAbiJson from "../abi/RouletteGameV3.json";
 import { BET_TYPES, BET_TYPE_LABELS, getNumberColor } from "./rouletteConstants";
 import { BettingTable } from "./BettingTable";
@@ -80,7 +81,7 @@ export function RouletteGame({ address }: { address: string }) {
     if (!meta || bets.size === 0) return null;
     if (meta.pool <= 0n) return "Pool is empty — fund the pool first";
     if (bal !== null && totalWei > bal) return "Not enough balance";
-    if (totalWei < meta.minBet) return `Min bet ${fmt(meta.minBet, decimals, 4)} ${meta.symbol}`;
+    if (totalWei < meta.minBet) return `Min bet ${fmt(meta.minBet, decimals)} ${meta.symbol}`;
     if (maxBet > 0n && totalWei > maxBet) return `Max bet ${(meta.maxBetRatioBps / 100).toFixed(0)}% of pool · ${fmt(maxBet, decimals)} ${meta.symbol}`;
     if (maxWin > 0n && grossPotential - totalWei > maxWin) return `Max win ${(meta.maxWinBps / 100).toFixed(0)}% of pool`;
     return null;
@@ -216,12 +217,6 @@ export function RouletteGame({ address }: { address: string }) {
               inputMode="decimal" placeholder="0.0" className="flex-1 bg-transparent outline-none text-xl font-mono tabular-nums w-full" />
             <span className="text-[11px] font-mono text-bone-500">{meta?.symbol}</span>
           </div>
-          <div className="flex gap-1.5 mt-2">
-            {["1", "5", "25", "100"].map((v) => (
-              <button key={v} onClick={() => setChip(v)}
-                className={`flex-1 text-[11px] font-mono rounded-lg py-1.5 border ${chip === v ? "border-accent-green text-accent-green bg-accent-green/10" : "border-ink-600 text-bone-400 hover:border-accent-green/50"}`}>{v}</button>
-            ))}
-          </div>
           <BetPercents bal={bal} maxBet={maxBet} decimals={decimals} onPick={setChip} disabled={busy} />
         </div>
 
@@ -257,7 +252,7 @@ export function RouletteGame({ address }: { address: string }) {
               {phase === "approving" ? "approving…" : phase === "spinning" ? "placing bets…" : phase === "revealing" ? "revealing…" : needsApprove ? "Approve & spin" : "Spin"}
             </button>
           )}
-          {meta && <div className="mt-2 font-mono text-[10px] text-bone-500 text-center">min {fmt(meta.minBet, decimals, 4)} · pool {fmt(meta.pool, decimals, 1)} {meta.symbol}</div>}
+          {meta && <div className="mt-2 font-mono text-[10px] text-bone-500 text-center">min {fmt(meta.minBet, decimals)} · pool {fmt(meta.pool, decimals)} {meta.symbol}</div>}
         </div>
 
         <div className="panel p-3 font-mono text-[11px] text-bone-500">
@@ -284,4 +279,6 @@ function coveragePct(type: number): string {
   return ((pockets / 37) * 100).toFixed(1);
 }
 
-function fmt(v: bigint, d = 18, mx = 2) { return Number(formatUnits(v, d)).toLocaleString(undefined, { maximumFractionDigits: mx }); }
+// Adaptive formatting — small pools/min-bets (e.g. 0.0029) stay legible instead
+// of rounding to "0". See fmtAmount in lib/util.
+function fmt(v: bigint, d = 18) { return fmtAmount(Number(formatUnits(v, d))); }

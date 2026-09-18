@@ -4,6 +4,7 @@ import { Loader2, Clock } from "lucide-react";
 import { useWallet } from "../lib/wallet";
 import { readProvider } from "../lib/chain";
 import { GAME_ERC20_ABI } from "../lib/casinoGame";
+import { fmtAmount } from "../lib/util";
 import { waitRevealReady, errMsg, sendGameTx } from "./gameCore";
 import { GameKey } from "../lib/casino";
 import rouletteAbi from "./abi/RouletteGameV3.json";
@@ -72,7 +73,7 @@ export function PendingBets({ gameKey, address, reloadSignal }: { gameKey: GameK
   if (pending.length === 0 && history.length === 0) return null;
   const d = meta?.decimals ?? 18;
   const sym = meta?.symbol ?? "";
-  const fmtA = (v: bigint) => Number(formatUnits(v, d)).toLocaleString(undefined, { maximumFractionDigits: 2 });
+  const fmtA = (v: bigint) => fmtAmount(Number(formatUnits(v, d)));
 
   async function reveal(id: bigint, commitBlock: number) {
     if (!w.signer || !cfg) return;

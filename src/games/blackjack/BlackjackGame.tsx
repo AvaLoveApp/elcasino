@@ -4,7 +4,7 @@ import { Loader2, Wallet, Plus, Hand as HandIcon, Square, CopyPlus, XCircle } fr
 import { useWallet } from "../../lib/wallet";
 import { readProvider } from "../../lib/chain";
 import { GAME_ERC20_ABI } from "../../lib/casinoGame";
-import { short } from "../../lib/util";
+import { short, fmtAmount } from "../../lib/util";
 import { waitRevealReady, sendGameTx } from "../gameCore";
 import { logBet } from "../../lib/betfeed";
 import { BetPercents } from "../BetPercents";
@@ -357,5 +357,5 @@ export function BlackjackGame({ address }: { address: string }) {
   );
 }
 
-function fmt(v: bigint, d = 18, mx = 2) { return Number(formatUnits(v, d)).toLocaleString(undefined, { maximumFractionDigits: mx }); }
+function fmt(v: bigint, d = 18, _mx = 2) { return fmtAmount(Number(formatUnits(v, d))); }
 function errMsg(e: any) { return e?.shortMessage || e?.reason || e?.message || "Transaction failed."; }

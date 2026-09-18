@@ -25,6 +25,22 @@ export function fmtInt(n: number): string {
   return Math.round(n).toLocaleString("en-US");
 }
 
+/**
+ * Adaptive token-amount formatting — scales precision to magnitude so small
+ * balances stay legible instead of rounding to "0". Fixes pools/min-bets like
+ * 0.0029 that a fixed `maximumFractionDigits: 1` would render as "0".
+ *   12,345 → "12,345" · 12.5 → "12.5" · 0.0029 → "0.0029" · 1.2e-7 → "0.0₆12"
+ */
+export function fmtAmount(n: number): string {
+  if (!isFinite(n) || n === 0) return "0";
+  const neg = n < 0 ? "-" : "";
+  const x = Math.abs(n);
+  if (x >= 1000) return neg + x.toLocaleString("en-US", { maximumFractionDigits: 0 });
+  if (x >= 1) return neg + x.toLocaleString("en-US", { maximumFractionDigits: 2 });
+  if (x >= 0.0001) return neg + x.toLocaleString("en-US", { maximumFractionDigits: 6 });
+  return neg + fmtPrice(x); // very small → DEX-Screener-style subscript notation
+}
+
 /** Resolve ipfs:// URIs to a gateway; pass http(s) and data: through. */
 export function resolveURI(uri?: string): string {
   if (!uri) return "";
