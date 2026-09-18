@@ -6,18 +6,20 @@ import { CopyButton } from "../components/CopyButton";
 import { short } from "../lib/util";
 import OverviewDoc from "./docs/OverviewDoc";
 import CasinoDoc from "./docs/CasinoDoc";
+import WhitepaperDoc from "./docs/WhitepaperDoc";
 
-type DocTab = "overview" | "casino" | "audit";
-// Only the Casino documentation is surfaced — the Overview litepaper and the
-// token audit report are hidden until the ELCAS token launches.
+type DocTab = "overview" | "whitepaper" | "casino" | "audit";
+// The technical Whitepaper is the primary document; the Casino overview is the
+// lighter companion. The Overview litepaper and token audit report stay hidden.
 const DOC_TABS: { key: DocTab; label: string; icon: any }[] = [
+  { key: "whitepaper", label: "Whitepaper", icon: BookOpen },
   { key: "casino", label: "Casino", icon: Dices },
 ];
 
 /** Documentation & audit hub — a litepaper for the whole platform
  *  (Overview, Casino) plus the ELCAS token security review. */
 export default function AuditPage() {
-  const [tab, setTab] = useState<DocTab>("casino");
+  const [tab, setTab] = useState<DocTab>("whitepaper");
   const pick = (t: DocTab) => { setTab(t); try { localStorage.setItem("midgard.docs.tab", t); } catch {} window.scrollTo({ top: 0 }); };
   return (
     <div className="animate-fade-up">
@@ -40,6 +42,7 @@ export default function AuditPage() {
       </div>
 
       {tab === "overview" && <OverviewDoc />}
+      {tab === "whitepaper" && <WhitepaperDoc />}
       {tab === "casino" && <CasinoDoc />}
       {tab === "audit" && <TokenAuditReport />}
     </div>
